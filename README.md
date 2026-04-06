@@ -25,4 +25,18 @@ perfetto-plugin/
 
 `ui/src/plugins/<同上目录名>/`
 
-具体注册步骤见各子目录下的 **README.md**。
+## 注册为默认插件（随 UI 启动自动加载）
+
+拷贝完成后，在 Perfetto 仓库里编辑 **`ui/src/core/default_plugins.ts`**：
+
+1. 打开文件中的 `defaultPlugins` 字符串数组。
+2. 在合适位置（例如其它 `dev.perfetto.*` 项附近）**新增一行**插件 ID，注意保留逗号：
+
+   `'dev.perfetto.UiAutomationBridge',`
+
+3. 重新构建 UI。
+
+`defaultPlugins` 中的插件会在用户打开 Perfetto UI 时默认启用，无需在设置里手动勾选。
+
+**仅临时启用（不改默认列表）**：可在 URL 上加  
+`?enablePlugins=dev.perfetto.UiAutomationBridge`（多个插件用英文逗号分隔）。详见各子目录 **README.md**。
