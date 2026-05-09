@@ -1,0 +1,47 @@
+{
+  "version": 1,
+  "title": "Performance evidence snapshot",
+  "tracks": [
+    {
+      "key": "focused-app",
+      "type": "track",
+      "name": "Focused App",
+      "unique": true,
+      "pin": true
+    },
+    {
+      "key": "surfaceflinger-main",
+      "type": "track",
+      "name": "surfaceflinger Main",
+      "unique": true,
+      "pin": true
+    }
+  ],
+  "events": [
+    {
+      "key": "direct-blocking-slice",
+      "type": "event",
+      "event": {
+        "type": "slice",
+        "id": 12345
+      },
+      "pinOwningTrack": true,
+      "focus": true,
+      "highlight": true
+    },
+    {
+      "key": "root-cause-thread-state",
+      "type": "event",
+      "event": {
+        "type": "thread_state",
+        "id": 67890
+      },
+      "pinOwningTrack": true,
+      "focus": true,
+      "highlight": true
+    }
+  ],
+  "screenshot": {
+    "fullPage": false
+  }
+}

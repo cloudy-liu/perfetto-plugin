@@ -1,0 +1,16 @@
+{
+  "version": 1,
+  "title": "Minimal track pin",
+  "tracks": [
+    {
+      "key": "scene",
+      "type": "track",
+      "name": "Focused App",
+      "unique": true,
+      "pin": true
+    }
+  ],
+  "screenshot": {
+    "fullPage": false
+  }
+}

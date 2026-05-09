@@ -1,0 +1,19 @@
+{
+  "version": 1,
+  "title": "Slice focus",
+  "events": [
+    {
+      "key": "target-slice",
+      "type": "event",
+      "event": {
+        "type": "slice",
+        "id": 12345
+      },
+      "pinOwningTrack": true,
+      "focus": true
+    }
+  ],
+  "screenshot": {
+    "fullPage": false
+  }
+}
