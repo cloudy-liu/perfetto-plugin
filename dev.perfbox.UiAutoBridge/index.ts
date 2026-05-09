@@ -525,7 +525,14 @@ export function applyTrackSnapshotSpecs(
 export function eventRefToSqlTable(
   event: UiAutoSnapshotEventRef,
 ): string | undefined {
-  return event.type === 'slice' ? 'slice' : undefined;
+  switch (event.type) {
+    case 'slice':
+      return 'slice';
+    case 'thread_state':
+      return 'thread_state';
+    default:
+      return undefined;
+  }
 }
 
 export async function applyEventSnapshotSpec(
