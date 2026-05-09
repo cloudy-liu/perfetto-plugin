@@ -2,85 +2,80 @@
 
 [English](README.md) | [简体中文](README.zh-CN.md)
 
-面向 Perfetto UI 插件的独立源码仓库。
+这是 Perfbox 用来维护 vendored Perfetto UI plugins 以及配套工具的源码仓库。
 
-当前仓库提供 `dev.perfetto.UiAutomationBridge`，它会暴露
-`window.traceUiAutomation`，供浏览器自动化调用。
+当前仓库包含 `dev.perfbox.UiAutoBridge` 插件。它会在 Perfetto UI 中暴露
+`window.perfboxUiAuto`，让外部浏览器自动化工具通过稳定的语义 API 操作
+Perfetto UI，而不是依赖脆弱的 DOM 点击流程。
 
-## 项目是什么？
-
-`perfetto-plugin` 是一个用于 vendoring 的源码仓库，不会单独构建或发布插件
-bundle。
-
-正确用法是：把插件目录拷贝进 Perfetto 源码树，然后在 Perfetto 工程里完成 UI
-构建。
-
-## 有什么作用？
-
-`dev.perfetto.UiAutomationBridge` 为自动化脚本提供稳定的语义化接口，避免依赖
-DOM 点击。它支持：
-
-- 选择 slice 或 SQL event
-- 按名称、kind、URI pin track
-- 缩放或平移时间线
-- 添加临时或永久 span note
-
-## 如何使用
-
-1. 将 `dev.perfetto.UiAutomationBridge/` 复制到
-   `<perfetto>/ui/src/plugins/dev.perfetto.UiAutomationBridge/`
-2. 如果希望默认启用，在
-   `<perfetto>/ui/src/core/default_plugins.ts` 中加入
-   `'dev.perfetto.UiAutomationBridge',`
-3. 在 Perfetto 仓库中重新构建 UI
-4. 打开 trace 后，等待 `window.traceUiAutomation?.isReady()` 为真，再调用 API
-
-如果不想改 `default_plugins.ts`，也可以通过 URL 临时启用：
+## 仓库结构
 
 ```text
-?enablePlugins=dev.perfetto.UiAutomationBridge
+dev.perfbox.UiAutoBridge/
+  README.md
+  index.ts
+  ui_auto_bridge_unittest.ts
+
+tools/
+  perfbox-uiauto/
 ```
 
-## 编译与测试
+`perfetto-plugin` 本身不单独构建 Perfetto UI 插件 bundle。正确使用方式是把
+插件目录复制到完整 Perfetto 源码树中，然后在 Perfetto 工程里构建和测试。
 
-编译和测试都发生在 vendoring 之后的 Perfetto 仓库里。
+## 插件使用
 
-构建 UI：
+1. 将 `dev.perfbox.UiAutoBridge/` 复制到
+   `<perfetto>/ui/src/plugins/dev.perfbox.UiAutoBridge/`。
+2. 如果希望默认启用，在
+   `<perfetto>/ui/src/core/default_plugins.ts` 中加入：
+   `'dev.perfbox.UiAutoBridge',`
+3. 在 Perfetto 仓库中重新构建 UI。
+4. 打开 trace 后，等待 `window.perfboxUiAuto?.isReady()` 为真，再调用 API。
+
+如果不想修改 `default_plugins.ts`，也可以通过 URL 临时启用：
+
+```text
+?enablePlugins=dev.perfbox.UiAutoBridge
+```
+
+## 插件测试
+
+插件复制到 Perfetto 后，在 Perfetto 仓库中运行：
 
 ```bash
-cd <perfetto>/ui
-npm run build
+cd <perfetto>
+./ui/run-unittests --test-filter ui_auto_bridge
 ```
 
-运行全部 UI 单测：
-
-```bash
-cd <perfetto>/ui
-npm test
-```
-
-只运行这个插件的单测：
-
-```bash
-cd <perfetto>/ui
-node build.js --run-unittests --test-filter trace_ui_automation_bridge
-```
-
-## 快速入门
-
-```bash
-cp -R dev.perfetto.UiAutomationBridge <perfetto>/ui/src/plugins/
-# 编辑 <perfetto>/ui/src/core/default_plugins.ts，加入：
-# 'dev.perfetto.UiAutomationBridge',
-cd <perfetto>/ui
-npm run build
-```
-
-然后在 Playwright 中调用：
+## API 示例
 
 ```js
-await page.waitForFunction(() => window.traceUiAutomation?.isReady());
-await page.evaluate(() => window.traceUiAutomation.selectSlice(12345));
+await page.waitForFunction(() => window.perfboxUiAuto?.isReady());
+await page.evaluate(() => window.perfboxUiAuto.selectSlice(12345));
+```
+
+## CLI
+
+`tools/perfbox-uiauto/` 是 Go 实现的 `perfbox-uiauto` CLI。`snapshot`
+命令会通过 Chrome DevTools Protocol 打开 Perfetto UI、加载 trace、调用
+`window.perfboxUiAuto.applySnapshot(spec)`，并输出 PNG 截图和可选的结构化
+result JSON。
+
+```powershell
+perfbox-uiauto snapshot `
+  --ui-url http://localhost:10000 `
+  --trace D:\traces\sample.trace `
+  --spec D:\reports\sample.snapshot.json `
+  --out D:\reports\sample.png `
+  --result D:\reports\sample.result.json
+```
+
+CLI 单元测试：
+
+```bash
+cd tools/perfbox-uiauto
+go test ./...
 ```
 
 ## 许可

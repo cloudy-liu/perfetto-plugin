@@ -2,85 +2,81 @@
 
 [English](README.md) | [简体中文](README.zh-CN.md)
 
-Standalone source packages for Perfetto UI plugins.
+Vendored Perfetto UI plugins and companion tools for Perfbox workflows.
 
-This repo currently ships `dev.perfetto.UiAutomationBridge`, a plugin that
-exposes `window.traceUiAutomation` for browser automation.
+This repository currently contains the `dev.perfbox.UiAutoBridge` plugin. The
+plugin exposes `window.perfboxUiAuto`, a browser automation API for driving
+Perfetto UI through stable semantic operations instead of DOM clicks.
 
-## What is this?
-
-`perfetto-plugin` is a vendoring repo. It does not build or publish a
-standalone plugin bundle.
-
-Copy the plugin directory into a Perfetto checkout and build Perfetto UI there.
-
-## What does it do?
-
-`dev.perfetto.UiAutomationBridge` gives automation scripts a stable API for
-driving Perfetto UI without relying on DOM clicks. It supports:
-
-- selecting a slice or SQL event
-- pinning tracks by name, kind, or URI
-- zooming or panning the timeline
-- adding temporary or permanent span notes
-
-## How to use
-
-1. Copy `dev.perfetto.UiAutomationBridge/` to
-   `<perfetto>/ui/src/plugins/dev.perfetto.UiAutomationBridge/`.
-2. Add `'dev.perfetto.UiAutomationBridge',` to
-   `<perfetto>/ui/src/core/default_plugins.ts` if you want it enabled by
-   default.
-3. Build Perfetto UI in the Perfetto repo.
-4. Load a trace and wait for `window.traceUiAutomation?.isReady()` before
-   calling the API.
-
-To enable the plugin without editing `default_plugins.ts`, open the UI with:
+## Repository Layout
 
 ```text
-?enablePlugins=dev.perfetto.UiAutomationBridge
+dev.perfbox.UiAutoBridge/
+  README.md
+  index.ts
+  ui_auto_bridge_unittest.ts
+
+tools/
+  perfbox-uiauto/
 ```
 
-## Build and test
+`perfetto-plugin` is a source vendoring repository. The plugin is built and
+tested after it is copied into a full Perfetto checkout.
 
-Build and test happen inside the Perfetto repo after vendoring the plugin.
+## Plugin Usage
 
-Build:
+1. Copy `dev.perfbox.UiAutoBridge/` to
+   `<perfetto>/ui/src/plugins/dev.perfbox.UiAutoBridge/`.
+2. Add `'dev.perfbox.UiAutoBridge',` to
+   `<perfetto>/ui/src/core/default_plugins.ts` if you want it enabled by
+   default.
+3. Build Perfetto UI from the Perfetto repository.
+4. Load a trace and wait for `window.perfboxUiAuto?.isReady()` before calling
+   the API.
+
+To enable the plugin without editing `default_plugins.ts`, open Perfetto UI with:
+
+```text
+?enablePlugins=dev.perfbox.UiAutoBridge
+```
+
+## Plugin Test
+
+Run the plugin unit tests after vendoring the plugin into Perfetto:
 
 ```bash
-cd <perfetto>/ui
-npm run build
+cd <perfetto>
+./ui/run-unittests --test-filter ui_auto_bridge
 ```
 
-Run all UI unit tests:
-
-```bash
-cd <perfetto>/ui
-npm test
-```
-
-Run only this plugin's unit tests:
-
-```bash
-cd <perfetto>/ui
-node build.js --run-unittests --test-filter trace_ui_automation_bridge
-```
-
-## Quick start
-
-```bash
-cp -R dev.perfetto.UiAutomationBridge <perfetto>/ui/src/plugins/
-# edit <perfetto>/ui/src/core/default_plugins.ts and add:
-# 'dev.perfetto.UiAutomationBridge',
-cd <perfetto>/ui
-npm run build
-```
-
-Then in Playwright:
+## Quick API Example
 
 ```js
-await page.waitForFunction(() => window.traceUiAutomation?.isReady());
-await page.evaluate(() => window.traceUiAutomation.selectSlice(12345));
+await page.waitForFunction(() => window.perfboxUiAuto?.isReady());
+await page.evaluate(() => window.perfboxUiAuto.selectSlice(12345));
+```
+
+## CLI
+
+`tools/perfbox-uiauto/` contains the Go `perfbox-uiauto` CLI. The `snapshot`
+command uses Chrome DevTools Protocol to open Perfetto UI, load a trace, call
+`window.perfboxUiAuto.applySnapshot(spec)`, and write a PNG plus optional
+structured result JSON.
+
+```powershell
+perfbox-uiauto snapshot `
+  --ui-url http://localhost:10000 `
+  --trace D:\traces\sample.trace `
+  --spec D:\reports\sample.snapshot.json `
+  --out D:\reports\sample.png `
+  --result D:\reports\sample.result.json
+```
+
+Run CLI unit tests from the tool directory:
+
+```bash
+cd tools/perfbox-uiauto
+go test ./...
 ```
 
 ## License

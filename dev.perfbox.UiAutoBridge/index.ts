@@ -30,7 +30,7 @@ const TEMPORARY_NOTE_ID = '__temp__';
 type TrackLookup = (uri: string) => Track | undefined;
 
 /** Metadata for one workspace track row (for automation / debugging). */
-export interface TraceUiTrackInfo {
+export interface UiAutoTrackInfo {
   readonly name: string;
   readonly title: string;
   readonly uri?: string;
@@ -42,7 +42,7 @@ export interface TraceUiTrackInfo {
   readonly isPinned: boolean;
 }
 
-export interface TraceUiSelectResult {
+export interface UiAutoSelectResult {
   readonly ok: boolean;
   readonly kind: Selection['kind'];
   readonly trackUri?: string;
@@ -50,59 +50,118 @@ export interface TraceUiSelectResult {
   readonly reason?: string;
 }
 
-export interface TraceUiPinResult {
+export interface UiAutoPinResult {
   readonly matched: number;
   readonly pinned: number;
-  readonly tracks: ReadonlyArray<TraceUiTrackInfo>;
+  readonly tracks: ReadonlyArray<UiAutoTrackInfo>;
 }
 
-export interface TraceUiActionResult {
+export interface UiAutoActionResult {
   readonly ok: boolean;
   readonly reason?: string;
 }
 
-export interface TraceUiResetResult {
+export interface UiAutoResetResult {
   readonly unpinned: number;
   readonly removedTemporaryNote: boolean;
 }
 
+export interface UiAutoSnapshotSpec {
+  readonly version: number;
+  readonly title?: string;
+  readonly tracks?: ReadonlyArray<UiAutoSnapshotTrackSpec>;
+  readonly events?: ReadonlyArray<UiAutoSnapshotEventSpec>;
+  readonly viewport?: unknown;
+  readonly screenshot?: unknown;
+}
+
+export interface UiAutoSnapshotTrackSpec {
+  readonly key?: string;
+  readonly type: string;
+  readonly name?: string;
+  readonly uri?: string;
+  readonly trackKind?: string;
+  readonly unique?: boolean;
+  readonly pin?: boolean;
+}
+
+export interface UiAutoSnapshotEventSpec {
+  readonly key?: string;
+  readonly type: string;
+  readonly event: UiAutoSnapshotEventRef;
+  readonly pinOwningTrack?: boolean;
+  readonly focus?: boolean;
+  readonly highlight?: boolean;
+}
+
+export interface UiAutoSnapshotEventRef {
+  readonly type: string;
+  readonly id: number;
+}
+
+export interface UiAutoSnapshotResult {
+  readonly ok: boolean;
+  readonly items: ReadonlyArray<UiAutoSnapshotItemResult>;
+  readonly warnings: ReadonlyArray<string>;
+  readonly errors: ReadonlyArray<UiAutoSnapshotError>;
+}
+
+export interface UiAutoSnapshotItemResult {
+  readonly key?: string;
+  readonly type?: string;
+  readonly ok: boolean;
+  readonly trackUri?: string;
+  readonly eventId?: number;
+  readonly matched?: number;
+  readonly pinned?: number;
+  readonly highlighted?: boolean;
+  readonly message?: string;
+}
+
+export interface UiAutoSnapshotError {
+  readonly code: string;
+  readonly message: string;
+  readonly key?: string;
+}
+
 /**
- * Imperative API for browser automation (e.g. Playwright): select slices, pin
+ * Imperative API for browser automation: select slices, pin
  * tracks, zoom, and annotate without relying on DOM structure.
  */
-export interface TraceUiAutomationApi {
+export interface PerfboxUiAutoApi {
   isReady(): boolean;
+  applySnapshot(spec: UiAutoSnapshotSpec): Promise<UiAutoSnapshotResult>;
   selectSlice(
     id: number,
     opts?: SelectionOpts,
-  ): Promise<TraceUiSelectResult>;
+  ): Promise<UiAutoSelectResult>;
   selectSqlEvent(
     table: string,
     id: number,
     opts?: SelectionOpts,
-  ): Promise<TraceUiSelectResult>;
-  pinTrack(pattern: string): TraceUiPinResult;
-  pinTrackByName(pattern: string): TraceUiPinResult;
-  pinTrackByKind(kind: string): TraceUiPinResult;
+  ): Promise<UiAutoSelectResult>;
+  pinTrack(pattern: string): UiAutoPinResult;
+  pinTrackByName(pattern: string): UiAutoPinResult;
+  pinTrackByKind(kind: string): UiAutoPinResult;
   pinTrackByUri(
     uri: string,
-  ): TraceUiPinResult & {readonly track?: TraceUiTrackInfo};
+  ): UiAutoPinResult & {readonly track?: UiAutoTrackInfo};
   unpinAll(): {readonly unpinned: number};
   zoomTo(
     startNs: string | number | bigint,
     endNs: string | number | bigint,
-  ): TraceUiActionResult;
-  panTo(tsNs: string | number | bigint): TraceUiActionResult;
-  mark(): Promise<TraceUiActionResult>;
-  markPermanent(): TraceUiActionResult;
+  ): UiAutoActionResult;
+  panTo(tsNs: string | number | bigint): UiAutoActionResult;
+  mark(): Promise<UiAutoActionResult>;
+  markPermanent(): UiAutoActionResult;
   addSpanNote(
     startNs: string | number | bigint,
     endNs: string | number | bigint,
     color?: string,
     text?: string,
   ): {readonly id: string};
-  reset(): TraceUiResetResult;
-  listTracks(): ReadonlyArray<TraceUiTrackInfo>;
+  reset(): UiAutoResetResult;
+  listTracks(): ReadonlyArray<UiAutoTrackInfo>;
 }
 
 interface ResolvedTrackEvent {
@@ -112,17 +171,17 @@ interface ResolvedTrackEvent {
 
 declare global {
   interface Window {
-    traceUiAutomation: TraceUiAutomationApi | undefined;
+    perfboxUiAuto: PerfboxUiAutoApi | undefined;
   }
 }
 
-export default class UiAutomationBridgePlugin implements PerfettoPlugin {
-  static readonly id = 'dev.perfetto.UiAutomationBridge';
+export default class UiAutoBridgePlugin implements PerfettoPlugin {
+  static readonly id = 'dev.perfbox.UiAutoBridge';
 
   async onTraceLoad(trace: Trace): Promise<void> {
     let ready = false;
 
-    const pinTracksByName = (pattern: string): TraceUiPinResult => {
+    const pinTracksByName = (pattern: string): UiAutoPinResult => {
       assertReady(ready);
       const matches = findTracksByName(trace.currentWorkspace.flatTracksOrdered, pattern);
       const pinned = pinTracks(matches);
@@ -133,8 +192,55 @@ export default class UiAutomationBridgePlugin implements PerfettoPlugin {
       };
     };
 
-    const bridge: TraceUiAutomationApi = {
+    const bridge: PerfboxUiAutoApi = {
       isReady: () => ready,
+
+      applySnapshot: async (spec) => {
+        assertReady(ready);
+        if (spec.version !== 1) {
+          return {
+            ok: false,
+            items: [],
+            warnings: [],
+            errors: [
+              {
+                code: 'INVALID_SPEC',
+                message: `Unsupported snapshot spec version ${spec.version}`,
+              },
+            ],
+          };
+        }
+        const trackResult = applyTrackSnapshotSpecs(
+          trace.currentWorkspace.flatTracksOrdered,
+          spec.tracks ?? [],
+          (uri) => trace.tracks.getTrack(uri),
+          (uri) => trace.currentWorkspace.getTrackByUri(uri),
+        );
+        const items = [...trackResult.items];
+        const errors = [...trackResult.errors];
+        for (const eventSpec of spec.events ?? []) {
+          const item = await applyEventSnapshotSpec(trace, eventSpec);
+          items.push(item);
+          if (!item.ok) {
+            errors.push(
+              snapshotError(
+                item.message === 'Unsupported event type'
+                  ? 'INVALID_SPEC'
+                  : 'EVENT_NOT_RESOLVED',
+                item.message ?? 'Event was not resolved',
+                item.key,
+              ),
+            );
+          }
+        }
+        await nextAnimationFrame();
+        return {
+          ok: errors.length === 0,
+          items,
+          warnings: [...trackResult.warnings],
+          errors,
+        };
+      },
 
       selectSlice: (id, opts) => {
         assertReady(ready);
@@ -284,13 +390,13 @@ export default class UiAutomationBridgePlugin implements PerfettoPlugin {
       },
     };
 
-    window.traceUiAutomation = bridge;
+    window.perfboxUiAuto = bridge;
     trace.onTraceReady.addListener(() => {
       ready = true;
     });
     trace.trash.defer(() => {
-      if (window.traceUiAutomation === bridge) {
-        window.traceUiAutomation = undefined;
+      if (window.perfboxUiAuto === bridge) {
+        window.perfboxUiAuto = undefined;
       }
     });
   }
@@ -303,7 +409,7 @@ export function nsToTime(raw: string | number | bigint): time {
 export function trackNodeToInfo(
   trackNode: TrackNode,
   getTrack: TrackLookup,
-): TraceUiTrackInfo {
+): UiAutoTrackInfo {
   const track = trackNode.uri ? getTrack(trackNode.uri) : undefined;
   const kinds = trackKinds(track);
   const type = trackType(track);
@@ -373,8 +479,173 @@ export function pinTracks(tracks: ReadonlyArray<TrackNode>): TrackNode[] {
   return pinned;
 }
 
-function getTrackInfo(trace: Trace, trackNode: TrackNode): TraceUiTrackInfo {
+export function applyTrackSnapshotSpecs(
+  tracks: ReadonlyArray<TrackNode>,
+  specs: ReadonlyArray<UiAutoSnapshotTrackSpec>,
+  getTrack: TrackLookup,
+  getTrackByUri: (uri: string) => TrackNode | undefined,
+): UiAutoSnapshotResult {
+  const items: UiAutoSnapshotItemResult[] = [];
+  const errors: UiAutoSnapshotError[] = [];
+
+  for (const spec of specs) {
+    const key = spec.key ?? spec.name ?? spec.uri ?? spec.trackKind;
+    if (spec.type !== 'track') {
+      errors.push(snapshotError('INVALID_SPEC', 'Track spec type must be "track"', key));
+      continue;
+    }
+
+    const matches = resolveSnapshotTracks(tracks, spec, getTrack, getTrackByUri);
+    if (matches.length === 0) {
+      errors.push(snapshotError('TRACK_NOT_FOUND', 'Track selector matched no tracks', key));
+      items.push({
+        key,
+        type: 'track',
+        ok: false,
+        matched: 0,
+        pinned: 0,
+      });
+      continue;
+    }
+    if (spec.unique === true && matches.length !== 1) {
+      errors.push(
+        snapshotError(
+          'TRACK_NOT_UNIQUE',
+          `Track selector matched ${matches.length} tracks`,
+          key,
+        ),
+      );
+      items.push({
+        key,
+        type: 'track',
+        ok: false,
+        matched: matches.length,
+        pinned: 0,
+      });
+      continue;
+    }
+
+    const pinned = spec.pin === false ? [] : pinTracks(matches);
+    items.push({
+      key,
+      type: 'track',
+      ok: true,
+      trackUri: matches[0].uri,
+      matched: matches.length,
+      pinned: pinned.length,
+    });
+  }
+
+  return {
+    ok: errors.length === 0,
+    items,
+    warnings: [],
+    errors,
+  };
+}
+
+export function eventRefToSqlTable(
+  event: UiAutoSnapshotEventRef,
+): string | undefined {
+  return event.type === 'slice' ? 'slice' : undefined;
+}
+
+async function applyEventSnapshotSpec(
+  trace: Trace,
+  spec: UiAutoSnapshotEventSpec,
+): Promise<UiAutoSnapshotItemResult> {
+  const key = spec.key ?? `${spec.event.type}:${spec.event.id}`;
+  if (spec.type !== 'event') {
+    return {
+      key,
+      type: 'event',
+      ok: false,
+      message: 'Snapshot event spec type must be "event"',
+    };
+  }
+
+  const table = eventRefToSqlTable(spec.event);
+  if (table === undefined) {
+    return {
+      key,
+      type: 'event',
+      ok: false,
+      eventId: spec.event.id,
+      message: 'Unsupported event type',
+    };
+  }
+
+  const selected = await selectResolvedSqlEvent(
+    trace,
+    table,
+    spec.event.id,
+    undefined,
+    spec.focus === true,
+  );
+  if (!selected.ok || selected.trackUri === undefined) {
+    return {
+      key,
+      type: 'event',
+      ok: false,
+      eventId: spec.event.id,
+      message: selected.reason ?? 'Event was not resolved',
+    };
+  }
+
+  let pinned = 0;
+  if (spec.pinOwningTrack === true) {
+    const track = trace.currentWorkspace.getTrackByUri(selected.trackUri);
+    pinned = track === undefined ? 0 : pinTracks([track]).length;
+  }
+
+  return {
+    key,
+    type: 'event',
+    ok: true,
+    trackUri: selected.trackUri,
+    eventId: selected.eventId,
+    pinned,
+  };
+}
+
+function getTrackInfo(trace: Trace, trackNode: TrackNode): UiAutoTrackInfo {
   return trackNodeToInfo(trackNode, (uri) => trace.tracks.getTrack(uri));
+}
+
+function resolveSnapshotTracks(
+  tracks: ReadonlyArray<TrackNode>,
+  spec: UiAutoSnapshotTrackSpec,
+  getTrack: TrackLookup,
+  getTrackByUri: (uri: string) => TrackNode | undefined,
+): TrackNode[] {
+  let matches = tracks.filter((track) => track.uri !== undefined);
+
+  if (spec.uri !== undefined) {
+    const track = getTrackByUri(spec.uri);
+    matches = track === undefined ? [] : [track];
+  }
+  if (spec.name !== undefined) {
+    matches = findTracksByName(matches, spec.name);
+  }
+  if (spec.trackKind !== undefined) {
+    matches = findTracksByKind(matches, spec.trackKind, getTrack);
+  }
+  if (
+    spec.uri === undefined &&
+    spec.name === undefined &&
+    spec.trackKind === undefined
+  ) {
+    return [];
+  }
+  return matches;
+}
+
+function snapshotError(
+  code: string,
+  message: string,
+  key?: string,
+): UiAutoSnapshotError {
+  return {code, message, key};
 }
 
 function trackKinds(track: Track | undefined): ReadonlyArray<string> | undefined {
@@ -392,7 +663,7 @@ function normalizeString(value: string): string {
 
 function assertReady(ready: boolean): void {
   if (!ready) {
-    throw new Error('trace UI automation bridge is not ready yet');
+    throw new Error('Perfbox UI auto bridge is not ready yet');
   }
 }
 
@@ -424,7 +695,7 @@ function matchesTrackEventSelection(
 function selectionResult(
   selection: Selection | undefined,
   reason: string,
-): TraceUiSelectResult {
+): UiAutoSelectResult {
   if (isTrackEventSelection(selection)) {
     return {
       ok: true,
@@ -447,7 +718,7 @@ async function selectResolvedSqlEvent(
   id: number,
   opts?: SelectionOpts,
   focusSelection = false,
-): Promise<TraceUiSelectResult> {
+): Promise<UiAutoSelectResult> {
   const expected = (await trace.selection.resolveSqlEvents(table, [id]))[0];
   if (expected === undefined) {
     return {
