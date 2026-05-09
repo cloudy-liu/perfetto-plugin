@@ -26,6 +26,7 @@ import {TrackNode} from '../../public/workspace';
 
 const SELECT_TIMEOUT_MS = 5000;
 const TEMPORARY_NOTE_ID = '__temp__';
+const SNAPSHOT_HIGHLIGHT_NOTE_PREFIX = '__perfbox_uiauto_highlight__';
 
 type TrackLookup = (uri: string) => Track | undefined;
 
@@ -317,30 +318,7 @@ export default class UiAutoBridgePlugin implements PerfettoPlugin {
 
       mark: async () => {
         assertReady(ready);
-        const range = trace.selection.getTimeSpanOfSelection();
-        if (range === undefined) {
-          return {ok: false, reason: 'No selection range to mark'};
-        }
-        trace.notes.addSpanNote({
-          start: range.start,
-          end: range.end,
-          id: TEMPORARY_NOTE_ID,
-        });
-        const selection = trace.selection.selection;
-        if (selection.kind === 'track_event') {
-          trace.selection.selectArea({
-            start: range.start,
-            end: range.end,
-            trackUris: [selection.trackUri],
-          });
-        }
-        const note = await waitForValue(
-          () => trace.notes.getNote(TEMPORARY_NOTE_ID),
-          (current) => current !== undefined,
-        );
-        return note !== undefined
-          ? {ok: true}
-          : {ok: false, reason: 'Timed out waiting for temporary note'};
+        return markCurrentSelection(trace);
       },
 
       markPermanent: () => {
@@ -550,7 +528,7 @@ export function eventRefToSqlTable(
   return event.type === 'slice' ? 'slice' : undefined;
 }
 
-async function applyEventSnapshotSpec(
+export async function applyEventSnapshotSpec(
   trace: Trace,
   spec: UiAutoSnapshotEventSpec,
 ): Promise<UiAutoSnapshotItemResult> {
@@ -598,6 +576,26 @@ async function applyEventSnapshotSpec(
     pinned = track === undefined ? 0 : pinTracks([track]).length;
   }
 
+  let highlighted = false;
+  if (spec.highlight === true) {
+    const highlightResult = await markCurrentSelection(
+      trace,
+      snapshotHighlightNoteId(key),
+    );
+    if (!highlightResult.ok) {
+      return {
+        key,
+        type: 'event',
+        ok: false,
+        trackUri: selected.trackUri,
+        eventId: selected.eventId,
+        pinned,
+        message: highlightResult.reason ?? 'Could not highlight event',
+      };
+    }
+    highlighted = true;
+  }
+
   return {
     key,
     type: 'event',
@@ -605,7 +603,43 @@ async function applyEventSnapshotSpec(
     trackUri: selected.trackUri,
     eventId: selected.eventId,
     pinned,
+    ...(highlighted ? {highlighted: true} : {}),
   };
+}
+
+async function markCurrentSelection(
+  trace: Trace,
+  noteId = TEMPORARY_NOTE_ID,
+): Promise<UiAutoActionResult> {
+  const range = trace.selection.getTimeSpanOfSelection();
+  if (range === undefined) {
+    return {ok: false, reason: 'No selection range to mark'};
+  }
+  trace.notes.addSpanNote({
+    start: range.start,
+    end: range.end,
+    id: noteId,
+  });
+  const selection = trace.selection.selection;
+  if (selection.kind === 'track_event') {
+    trace.selection.selectArea({
+      start: range.start,
+      end: range.end,
+      trackUris: [selection.trackUri],
+    });
+  }
+  const note = await waitForValue(
+    () => trace.notes.getNote(noteId),
+    (current) => current !== undefined,
+  );
+  return note !== undefined
+    ? {ok: true}
+    : {ok: false, reason: 'Timed out waiting for temporary note'};
+}
+
+function snapshotHighlightNoteId(key: string): string {
+  const safeKey = key.replace(/[^a-zA-Z0-9_.-]+/g, '_');
+  return `${SNAPSHOT_HIGHLIGHT_NOTE_PREFIX}${safeKey}`;
 }
 
 function getTrackInfo(trace: Trace, trackNode: TrackNode): UiAutoTrackInfo {
