@@ -152,6 +152,9 @@ describe('ui_auto_bridge', () => {
 
   test('eventRefToSqlTable maps slice refs', () => {
     expect(eventRefToSqlTable({type: 'slice', id: 1})).toBe('slice');
+    expect(eventRefToSqlTable({type: 'thread_state', id: 2})).toBe(
+      'thread_state',
+    );
     expect(eventRefToSqlTable({type: 'unknown', id: 1})).toBeUndefined();
   });
 
