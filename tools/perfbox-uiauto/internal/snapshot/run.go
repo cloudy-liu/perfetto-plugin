@@ -12,7 +12,21 @@ import (
 	"github.com/cloudy-liu/perfetto-plugin/tools/perfbox-uiauto/internal/spec"
 )
 
+type CaptureFunc func(
+	context.Context,
+	browser.Options,
+	spec.SnapshotSpec,
+) (result.SnapshotResult, []byte, error)
+
 func Run(parent context.Context, opts Options) (result.SnapshotResult, error) {
+	return RunWithCapture(parent, opts, browser.CaptureSnapshot)
+}
+
+func RunWithCapture(
+	parent context.Context,
+	opts Options,
+	capture CaptureFunc,
+) (result.SnapshotResult, error) {
 	timeout := time.Duration(opts.TimeoutMS) * time.Millisecond
 	ctx, cancel := context.WithTimeout(parent, timeout)
 	defer cancel()
@@ -31,7 +45,7 @@ func Run(parent context.Context, opts Options) (result.SnapshotResult, error) {
 		return snapshotResult, err
 	}
 
-	snapshotResult, png, err := browser.CaptureSnapshot(ctx, browser.Options{
+	snapshotResult, png, err := capture(ctx, browser.Options{
 		UIURL:       opts.UIURL,
 		TracePath:   tracePath,
 		Viewport:    opts.Viewport,
