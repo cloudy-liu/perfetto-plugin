@@ -15,6 +15,7 @@
 import {Track} from '../../public/track';
 import {TrackNode} from '../../public/workspace';
 import UiAutoBridgePlugin, {
+  applyEventSnapshotSpec,
   applyTrackSnapshotSpecs,
   eventRefToSqlTable,
   findTracksByKind,
@@ -152,5 +153,76 @@ describe('ui_auto_bridge', () => {
   test('eventRefToSqlTable maps slice refs', () => {
     expect(eventRefToSqlTable({type: 'slice', id: 1})).toBe('slice');
     expect(eventRefToSqlTable({type: 'unknown', id: 1})).toBeUndefined();
+  });
+
+  test('applyEventSnapshotSpec highlights selected events when requested', async () => {
+    const track = new TrackNode({name: 'RenderThread', uri: 'track://render'});
+    track.pin = jest.fn();
+    const notes = new Map<string, unknown>();
+    const selection: {
+      selection: any;
+      resolveSqlEvents: jest.Mock;
+      selectTrackEvent: jest.Mock;
+      scrollToSelection: jest.Mock;
+      getTimeSpanOfSelection: jest.Mock;
+      selectArea: jest.Mock;
+    } = {
+      selection: {kind: 'empty'},
+      resolveSqlEvents: jest.fn(async () => [
+        {trackUri: 'track://render', eventId: 7},
+      ]),
+      selectTrackEvent: jest.fn((trackUri: string, eventId: number) => {
+        selection.selection = {kind: 'track_event', trackUri, eventId};
+      }),
+      scrollToSelection: jest.fn(),
+      getTimeSpanOfSelection: jest.fn(() => ({
+        start: nsToTime(10),
+        end: nsToTime(20),
+      })),
+      selectArea: jest.fn(),
+    };
+    const trace = {
+      selection,
+      currentWorkspace: {
+        getTrackByUri: jest.fn((uri: string) =>
+          uri === 'track://render' ? track : undefined,
+        ),
+      },
+      notes: {
+        addSpanNote: jest.fn((note: {id?: string}) => {
+          const id = note.id ?? 'note-id';
+          notes.set(id, note);
+          return id;
+        }),
+        getNote: jest.fn((id: string) => notes.get(id)),
+      },
+    } as unknown as Parameters<typeof applyEventSnapshotSpec>[0];
+
+    const result = await applyEventSnapshotSpec(trace, {
+      key: 'render-block',
+      type: 'event',
+      event: {type: 'slice', id: 3},
+      pinOwningTrack: true,
+      focus: true,
+      highlight: true,
+    });
+
+    expect(result).toMatchObject({
+      key: 'render-block',
+      type: 'event',
+      ok: true,
+      trackUri: 'track://render',
+      eventId: 7,
+      pinned: 1,
+      highlighted: true,
+    });
+    expect(trace.notes.addSpanNote).toHaveBeenCalledWith(
+      expect.objectContaining({
+        id: expect.stringContaining('__perfbox_uiauto_highlight__'),
+      }),
+    );
+    expect(selection.selectArea).toHaveBeenCalledWith(
+      expect.objectContaining({trackUris: ['track://render']}),
+    );
   });
 });
