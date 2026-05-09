@@ -1,0 +1,20 @@
+{
+  "version": 1,
+  "title": "Thread state snapshot",
+  "events": [
+    {
+      "key": "blocked-thread-state",
+      "type": "event",
+      "event": {
+        "type": "thread_state",
+        "id": 67890
+      },
+      "pinOwningTrack": true,
+      "focus": true,
+      "highlight": true
+    }
+  ],
+  "screenshot": {
+    "fullPage": false
+  }
+}

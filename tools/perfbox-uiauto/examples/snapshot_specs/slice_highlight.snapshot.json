@@ -1,0 +1,20 @@
+{
+  "version": 1,
+  "title": "Slice highlight",
+  "events": [
+    {
+      "key": "target-slice",
+      "type": "event",
+      "event": {
+        "type": "slice",
+        "id": 12345
+      },
+      "pinOwningTrack": true,
+      "focus": true,
+      "highlight": true
+    }
+  ],
+  "screenshot": {
+    "fullPage": false
+  }
+}
