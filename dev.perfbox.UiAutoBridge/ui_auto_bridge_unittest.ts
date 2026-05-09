@@ -14,7 +14,9 @@
 
 import {Track} from '../../public/track';
 import {TrackNode} from '../../public/workspace';
-import {
+import UiAutoBridgePlugin, {
+  applyTrackSnapshotSpecs,
+  eventRefToSqlTable,
   findTracksByKind,
   findTracksByName,
   nsToTime,
@@ -26,7 +28,11 @@ function mockTrack(partial: Partial<Track> & {uri?: string}): Track {
   return partial as Track;
 }
 
-describe('trace_ui_automation_bridge', () => {
+describe('ui_auto_bridge', () => {
+  test('plugin id uses the Perfbox namespace', () => {
+    expect(UiAutoBridgePlugin.id).toBe('dev.perfbox.UiAutoBridge');
+  });
+
   test('nsToTime parses string and bigint', () => {
     const t = nsToTime('1000');
     expect(Number(t)).toBe(1000);
@@ -95,5 +101,56 @@ describe('trace_ui_automation_bridge', () => {
 
     expect(pinTracks([bare, withUri, already])).toEqual([withUri]);
     expect(pin).toHaveBeenCalledTimes(1);
+  });
+
+  test('applyTrackSnapshotSpecs pins a unique track by name', () => {
+    const pin = jest.fn();
+    const focusedApp = new TrackNode({name: 'Focused app', uri: 'track://focused'});
+    focusedApp.pin = pin;
+
+    const result = applyTrackSnapshotSpecs(
+      [focusedApp],
+      [{key: 'scene', type: 'track', name: 'Focused app', unique: true}],
+      () => undefined,
+      (uri) => (uri === focusedApp.uri ? focusedApp : undefined),
+    );
+
+    expect(result.ok).toBe(true);
+    expect(result.errors).toEqual([]);
+    expect(result.items).toEqual([
+      expect.objectContaining({
+        key: 'scene',
+        type: 'track',
+        ok: true,
+        trackUri: 'track://focused',
+        pinned: 1,
+      }),
+    ]);
+    expect(pin).toHaveBeenCalledTimes(1);
+  });
+
+  test('applyTrackSnapshotSpecs reports non-unique track selectors', () => {
+    const first = new TrackNode({name: 'RenderThread', uri: 'track://one'});
+    const second = new TrackNode({name: 'RenderThread', uri: 'track://two'});
+
+    const result = applyTrackSnapshotSpecs(
+      [first, second],
+      [{key: 'render', type: 'track', name: 'RenderThread', unique: true}],
+      () => undefined,
+      () => undefined,
+    );
+
+    expect(result.ok).toBe(false);
+    expect(result.errors).toEqual([
+      expect.objectContaining({
+        code: 'TRACK_NOT_UNIQUE',
+        key: 'render',
+      }),
+    ]);
+  });
+
+  test('eventRefToSqlTable maps slice refs', () => {
+    expect(eventRefToSqlTable({type: 'slice', id: 1})).toBe('slice');
+    expect(eventRefToSqlTable({type: 'unknown', id: 1})).toBeUndefined();
   });
 });
