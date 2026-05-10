@@ -2,30 +2,32 @@
 
 [English](README.md) | [简体中文](README.zh-CN.md)
 
-这是 Perfbox 用来维护 vendored Perfetto UI plugins 以及配套工具的源码仓库。
+这是 Perfbox 用来维护 vendored Perfetto UI 插件源码以及可选配套工具的仓库。
 
-当前仓库包含 `dev.perfbox.UiAutoBridge` 插件。它会在 Perfetto UI 中暴露
-`window.perfboxUiAuto`，让外部浏览器自动化工具通过稳定的语义 API 操作
-Perfetto UI，而不是依赖脆弱的 DOM 点击流程。
+当前仓库在 `ui-plugins/` 下包含 `dev.perfbox.UiAutoBridge` 插件。它会在
+Perfetto UI 中暴露 `window.perfboxUiAuto`，让外部浏览器自动化工具通过稳定的
+语义 API 操作 Perfetto UI，而不是依赖脆弱的 DOM 点击流程。
 
 ## 仓库结构
 
 ```text
-dev.perfbox.UiAutoBridge/
-  README.md
-  index.ts
-  ui_auto_bridge_unittest.ts
+ui-plugins/
+  dev.perfbox.UiAutoBridge/
+    README.md
+    index.ts
+    ui_auto_bridge_unittest.ts
 
 tools/
   perfbox-uiauto/
 ```
 
 `perfetto-plugin` 本身不单独构建 Perfetto UI 插件 bundle。正确使用方式是把
-插件目录复制到完整 Perfetto 源码树中，然后在 Perfetto 工程里构建和测试。
+插件源码目录复制到完整 Perfetto 源码树中，然后在 Perfetto 工程里构建和测试。
+`tools/` 下的配套工具是可选能力，不要求每个插件都拥有一个工具。
 
 ## 插件使用
 
-1. 将 `dev.perfbox.UiAutoBridge/` 复制到
+1. 将 `ui-plugins/dev.perfbox.UiAutoBridge/` 复制到
    `<perfetto>/ui/src/plugins/dev.perfbox.UiAutoBridge/`。
 2. 如果希望默认启用，在
    `<perfetto>/ui/src/core/default_plugins.ts` 中加入：
