@@ -2,30 +2,34 @@
 
 [English](README.md) | [简体中文](README.zh-CN.md)
 
-Vendored Perfetto UI plugins and companion tools for Perfbox workflows.
+Perfbox-maintained vendored Perfetto UI plugin sources and optional companion
+tools.
 
-This repository currently contains the `dev.perfbox.UiAutoBridge` plugin. The
-plugin exposes `window.perfboxUiAuto`, a browser automation API for driving
-Perfetto UI through stable semantic operations instead of DOM clicks.
+This repository currently contains the `dev.perfbox.UiAutoBridge` plugin under
+`ui-plugins/`. The plugin exposes `window.perfboxUiAuto`, a browser automation
+API for driving Perfetto UI through stable semantic operations instead of DOM
+clicks.
 
 ## Repository Layout
 
 ```text
-dev.perfbox.UiAutoBridge/
-  README.md
-  index.ts
-  ui_auto_bridge_unittest.ts
+ui-plugins/
+  dev.perfbox.UiAutoBridge/
+    README.md
+    index.ts
+    ui_auto_bridge_unittest.ts
 
 tools/
   perfbox-uiauto/
 ```
 
-`perfetto-plugin` is a source vendoring repository. The plugin is built and
-tested after it is copied into a full Perfetto checkout.
+`perfetto-plugin` is a source vendoring repository. Perfetto UI plugin sources
+are built and tested after they are copied into a full Perfetto checkout.
+Companion tools under `tools/` are optional; not every plugin needs one.
 
 ## Plugin Usage
 
-1. Copy `dev.perfbox.UiAutoBridge/` to
+1. Copy `ui-plugins/dev.perfbox.UiAutoBridge/` to
    `<perfetto>/ui/src/plugins/dev.perfbox.UiAutoBridge/`.
 2. Add `'dev.perfbox.UiAutoBridge',` to
    `<perfetto>/ui/src/core/default_plugins.ts` if you want it enabled by
