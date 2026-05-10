@@ -82,3 +82,7 @@ go test ./...
 ## License
 
 Apache-2.0. See `LICENSE`.
+
+## Contributing
+
+Contributions are accepted under Apache-2.0. See `CONTRIBUTING.md`.
