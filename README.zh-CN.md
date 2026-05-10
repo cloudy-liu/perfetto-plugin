@@ -81,3 +81,7 @@ go test ./...
 ## 许可
 
 Apache-2.0，见 `LICENSE`。
+
+## 贡献
+
+贡献内容按 Apache-2.0 授权，见 `CONTRIBUTING.md`。
