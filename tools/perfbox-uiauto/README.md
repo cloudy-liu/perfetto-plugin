@@ -29,7 +29,11 @@ perfbox-uiauto snapshot `
 - `--viewport`, default `1920x1080`
 - `--timeout-ms`, default `60000`
 - `--browser-path`, optional explicit Chrome, Edge, or Chromium path
-- `--headed`, default `false`
+- `--profile-dir`, optional persistent browser profile directory
+- `--headed`, default `false`; by default the browser runs headless
 
-Each invocation uses an isolated temporary browser profile so upstream tools can
-run multiple processes concurrently.
+By default, each invocation uses an isolated temporary browser profile so
+upstream tools can run multiple processes concurrently. Pass `--profile-dir` to
+reuse a persistent browser profile across invocations, which can preserve
+browser cache and local storage. Do not run concurrent CLI invocations against
+the same profile directory because Chromium locks active profiles.

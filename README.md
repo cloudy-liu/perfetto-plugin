@@ -76,6 +76,12 @@ perfbox-uiauto snapshot `
   --result D:\reports\sample.result.json
 ```
 
+The CLI runs the browser headless by default. Use `--headed` to show the browser
+window while debugging, and `--profile-dir D:\cache\perfbox-uiauto-profile` to
+reuse a persistent browser profile across repeated runs. Do not share one
+profile directory across concurrent invocations because Chromium locks active
+profiles.
+
 Run CLI unit tests from the tool directory:
 
 ```bash

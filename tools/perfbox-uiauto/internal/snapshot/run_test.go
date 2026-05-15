@@ -186,6 +186,49 @@ func TestRunWithCaptureWritesIndependentConcurrentOutputs(t *testing.T) {
 	assertResultOK(t, failureOpts.ResultPath, false)
 }
 
+func TestRunWithCaptureForwardsBrowserLaunchOptions(t *testing.T) {
+	dir := t.TempDir()
+	specPath := filepath.Join(dir, "snapshot.json")
+	if err := os.WriteFile(specPath, []byte(`{"version":1}`), 0o644); err != nil {
+		t.Fatal(err)
+	}
+
+	var got browser.Options
+	capture := func(
+		_ context.Context,
+		opts browser.Options,
+		_ spec.SnapshotSpec,
+	) (result.SnapshotResult, []byte, error) {
+		got = opts
+		return result.SnapshotResult{OK: true}, []byte("png"), nil
+	}
+
+	opts := Options{
+		UIURL:       "http://localhost:10000",
+		TracePath:   filepath.Join(dir, "trace.pftrace"),
+		SpecPath:    specPath,
+		OutPath:     filepath.Join(dir, "out.png"),
+		Viewport:    "1920x1080",
+		TimeoutMS:   1000,
+		BrowserPath: "C:\\browser\\chrome.exe",
+		ProfileDir:  filepath.Join(dir, "profile"),
+		Headed:      true,
+	}
+
+	if _, err := RunWithCapture(context.Background(), opts, capture); err != nil {
+		t.Fatalf("RunWithCapture returned error: %v", err)
+	}
+	if got.BrowserPath != opts.BrowserPath {
+		t.Fatalf("BrowserPath = %q, want %q", got.BrowserPath, opts.BrowserPath)
+	}
+	if got.ProfileDir != opts.ProfileDir {
+		t.Fatalf("ProfileDir = %q, want %q", got.ProfileDir, opts.ProfileDir)
+	}
+	if !got.Headed {
+		t.Fatal("Headed = false, want true")
+	}
+}
+
 func assertFileBytes(t *testing.T, path string, want []byte) {
 	t.Helper()
 	got, err := os.ReadFile(path)
