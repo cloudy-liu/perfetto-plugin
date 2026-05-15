@@ -50,6 +50,7 @@ func ParseSnapshotArgs(args []string) (SnapshotOptions, error) {
 	fs.StringVar(&opts.Viewport, "viewport", opts.Viewport, "browser viewport, WIDTHxHEIGHT")
 	fs.IntVar(&opts.TimeoutMS, "timeout-ms", opts.TimeoutMS, "timeout in milliseconds")
 	fs.StringVar(&opts.BrowserPath, "browser-path", "", "explicit Chrome, Edge, or Chromium path")
+	fs.StringVar(&opts.ProfileDir, "profile-dir", "", "persistent browser profile directory")
 	fs.BoolVar(&opts.Headed, "headed", false, "run browser in headed mode")
 
 	if err := fs.Parse(args); err != nil {

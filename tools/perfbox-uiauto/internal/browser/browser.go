@@ -41,6 +41,7 @@ type Options struct {
 	TracePath   string
 	Viewport    string
 	BrowserPath string
+	ProfileDir  string
 	Headed      bool
 }
 
@@ -69,11 +70,11 @@ func CaptureSnapshot(
 		return failed(result.InvalidSpec, err.Error()), nil, err
 	}
 
-	profileDir, err := os.MkdirTemp("", "perfbox-uiauto-*")
+	profileDir, cleanupProfile, err := prepareProfileDir(opts.ProfileDir)
 	if err != nil {
 		return failed(result.BrowserNotFound, err.Error()), nil, err
 	}
-	defer os.RemoveAll(profileDir)
+	defer cleanupProfile()
 
 	allocatorOptions := append(chromedp.DefaultExecAllocatorOptions[:],
 		chromedp.ExecPath(browserPath),
@@ -81,8 +82,12 @@ func CaptureSnapshot(
 		chromedp.NoFirstRun,
 		chromedp.NoDefaultBrowserCheck,
 	)
-	if !opts.Headed {
-		allocatorOptions = append(allocatorOptions, chromedp.Headless)
+	if opts.Headed {
+		allocatorOptions = append(allocatorOptions,
+			chromedp.Flag("headless", false),
+			chromedp.Flag("hide-scrollbars", false),
+			chromedp.Flag("mute-audio", false),
+		)
 	}
 
 	allocCtx, cancelAllocator := chromedp.NewExecAllocator(ctx, allocatorOptions...)
@@ -180,6 +185,25 @@ func FindExecutable(explicit string) (string, error) {
 	}
 
 	return "", errors.New("Chrome, Edge, or Chromium executable was not found")
+}
+
+func prepareProfileDir(explicit string) (string, func(), error) {
+	if explicit == "" {
+		profileDir, err := os.MkdirTemp("", "perfbox-uiauto-*")
+		if err != nil {
+			return "", func() {}, err
+		}
+		return profileDir, func() { _ = os.RemoveAll(profileDir) }, nil
+	}
+
+	profileDir, err := filepath.Abs(explicit)
+	if err != nil {
+		return "", func() {}, err
+	}
+	if err := os.MkdirAll(profileDir, 0o755); err != nil {
+		return "", func() {}, err
+	}
+	return profileDir, func() {}, nil
 }
 
 func showTraceFileInput() chromedp.Action {

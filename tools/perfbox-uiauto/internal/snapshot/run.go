@@ -64,6 +64,7 @@ func RunWithCapture(
 		TracePath:   tracePath,
 		Viewport:    opts.Viewport,
 		BrowserPath: opts.BrowserPath,
+		ProfileDir:  opts.ProfileDir,
 		Headed:      opts.Headed,
 	}, snapshotSpec)
 	if err != nil {

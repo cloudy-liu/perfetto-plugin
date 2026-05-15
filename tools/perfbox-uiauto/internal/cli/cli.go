@@ -37,6 +37,7 @@ Snapshot flags:
   --viewport WxH       Browser viewport (default 1920x1080)
   --timeout-ms N       Timeout in milliseconds (default 60000)
   --browser-path PATH  Explicit Chrome, Edge, or Chromium path
+  --profile-dir PATH   Persistent browser profile directory
   --headed             Run browser in headed mode
 `
 

@@ -54,6 +54,33 @@ func TestParseSnapshotArgsUsesDefaults(t *testing.T) {
 	if opts.Headed {
 		t.Fatal("Headed = true, want false by default")
 	}
+	if opts.ProfileDir != "" {
+		t.Fatalf("ProfileDir = %q, want empty by default", opts.ProfileDir)
+	}
+}
+
+func TestParseSnapshotArgsParsesBrowserLaunchFlags(t *testing.T) {
+	opts, err := ParseSnapshotArgs([]string{
+		"--trace", "sample.trace",
+		"--spec", "sample.snapshot.json",
+		"--out", "sample.png",
+		"--browser-path", "C:\\browser\\chrome.exe",
+		"--profile-dir", "D:\\cache\\perfbox-profile",
+		"--headed",
+	})
+	if err != nil {
+		t.Fatalf("ParseSnapshotArgs returned error: %v", err)
+	}
+
+	if opts.BrowserPath != "C:\\browser\\chrome.exe" {
+		t.Fatalf("BrowserPath = %q", opts.BrowserPath)
+	}
+	if opts.ProfileDir != "D:\\cache\\perfbox-profile" {
+		t.Fatalf("ProfileDir = %q", opts.ProfileDir)
+	}
+	if !opts.Headed {
+		t.Fatal("Headed = false, want true")
+	}
 }
 
 func TestMainSnapshotReturnsFailureForRunnerError(t *testing.T) {

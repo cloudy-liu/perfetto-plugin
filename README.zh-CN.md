@@ -73,6 +73,11 @@ perfbox-uiauto snapshot `
   --result D:\reports\sample.result.json
 ```
 
+CLI 默认以 headless 模式运行浏览器。调试时可以加 `--headed` 显示浏览器窗口；
+如果需要多次运行时复用浏览器缓存和 local storage，可以加
+`--profile-dir D:\cache\perfbox-uiauto-profile` 使用持久 profile。不要让多个
+并发 CLI 进程共用同一个 profile 目录，因为 Chromium 会锁定正在使用的 profile。
+
 CLI 单元测试：
 
 ```bash

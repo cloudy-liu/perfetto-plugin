@@ -23,5 +23,6 @@ type Options struct {
 	Viewport    string
 	TimeoutMS   int
 	BrowserPath string
+	ProfileDir  string
 	Headed      bool
 }
