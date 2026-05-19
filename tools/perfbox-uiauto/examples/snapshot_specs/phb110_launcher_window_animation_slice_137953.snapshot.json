@@ -1,0 +1,36 @@
+{
+  "version": 1,
+  "title": "PHB110 launcher window animation slice 137953",
+  "tracks": [
+    {
+      "key": "focused-app",
+      "type": "track",
+      "name": "Focused app",
+      "unique": true,
+      "pin": true
+    },
+    {
+      "key": "launcher-window-animation-launch-app",
+      "type": "track",
+      "uri": "/slice_3043",
+      "pin": true
+    }
+  ],
+  "events": [
+    {
+      "key": "launcher-doframe-slice-137953",
+      "type": "event",
+      "event": {
+        "type": "slice",
+        "id": 137953
+      },
+      "focus": true,
+      "highlight": true,
+      "selectArea": false,
+      "switchToCurrentSelectionTab": false
+    }
+  ],
+  "screenshot": {
+    "fullPage": false
+  }
+}

@@ -1,0 +1,79 @@
+{
+  "version": 1,
+  "title": "PHB110 camera startup happy path",
+  "tracks": [
+    {
+      "key": "focused-app-by-name",
+      "type": "track",
+      "name": "Focused app",
+      "unique": true,
+      "pin": true
+    },
+    {
+      "key": "actual-frames-by-kind",
+      "type": "track",
+      "trackKind": "ActualFramesSliceTrack",
+      "pin": true
+    },
+    {
+      "key": "camera-main-thread-by-uri",
+      "type": "track",
+      "uri": "/slice_4215",
+      "pin": true
+    },
+    {
+      "key": "camera-handler-state-by-name-kind",
+      "type": "track",
+      "name": "CameraHandlerTh 25875",
+      "trackKind": "ThreadStateTrack",
+      "unique": true,
+      "pin": true
+    }
+  ],
+  "events": [
+    {
+      "key": "camera-perform-create",
+      "type": "event",
+      "event": {
+        "type": "slice",
+        "id": 267586
+      },
+      "pinOwningTrack": true,
+      "highlight": true
+    },
+    {
+      "key": "camera-startup-metric-slice",
+      "type": "event",
+      "event": {
+        "type": "slice",
+        "id": 267895
+      },
+      "pinOwningTrack": true,
+      "highlight": true
+    },
+    {
+      "key": "surfaceflinger-actual-frame",
+      "type": "event",
+      "event": {
+        "type": "slice",
+        "id": 285035
+      },
+      "pinOwningTrack": true,
+      "highlight": true
+    },
+    {
+      "key": "camera-handler-thread-state",
+      "type": "event",
+      "event": {
+        "type": "thread_state",
+        "id": 294542
+      },
+      "pinOwningTrack": true,
+      "focus": true,
+      "highlight": true
+    }
+  ],
+  "screenshot": {
+    "fullPage": false
+  }
+}

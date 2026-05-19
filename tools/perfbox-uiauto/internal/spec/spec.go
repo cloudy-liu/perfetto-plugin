@@ -44,12 +44,14 @@ type TrackSpec struct {
 }
 
 type EventSpec struct {
-	Key            string   `json:"key,omitempty"`
-	Type           string   `json:"type"`
-	Event          EventRef `json:"event"`
-	PinOwningTrack bool     `json:"pinOwningTrack,omitempty"`
-	Focus          bool     `json:"focus,omitempty"`
-	Highlight      bool     `json:"highlight,omitempty"`
+	Key                         string   `json:"key,omitempty"`
+	Type                        string   `json:"type"`
+	Event                       EventRef `json:"event"`
+	PinOwningTrack              bool     `json:"pinOwningTrack,omitempty"`
+	Focus                       bool     `json:"focus,omitempty"`
+	Highlight                   bool     `json:"highlight,omitempty"`
+	SelectArea                  *bool    `json:"selectArea,omitempty"`
+	SwitchToCurrentSelectionTab *bool    `json:"switchToCurrentSelectionTab,omitempty"`
 }
 
 type EventRef struct {

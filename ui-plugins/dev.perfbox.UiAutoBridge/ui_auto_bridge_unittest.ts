@@ -185,6 +185,15 @@ describe('ui_auto_bridge', () => {
       selectArea: jest.fn(),
     };
     const trace = {
+      engine: {
+        query: jest.fn(async () => ({
+          maybeFirstRow: jest.fn(() => ({
+            ts: 711802974000000n,
+            dur: 6522000n,
+          })),
+        })),
+      },
+      scrollTo: jest.fn(),
       selection,
       currentWorkspace: {
         getTrackByUri: jest.fn((uri: string) =>
@@ -227,5 +236,385 @@ describe('ui_auto_bridge', () => {
     expect(selection.selectArea).toHaveBeenCalledWith(
       expect.objectContaining({trackUris: ['track://render']}),
     );
+  });
+
+  test('applyEventSnapshotSpec reveals focused slice using slice bounds', async () => {
+    const selection: {
+      selection: any;
+      resolveSqlEvents: jest.Mock;
+      selectTrackEvent: jest.Mock;
+      scrollToSelection: jest.Mock;
+      getTimeSpanOfSelection: jest.Mock;
+      selectArea: jest.Mock;
+    } = {
+      selection: {kind: 'empty'},
+      resolveSqlEvents: jest.fn(async () => [
+        {trackUri: 'track://launcher-main', eventId: 137953},
+      ]),
+      selectTrackEvent: jest.fn((trackUri: string, eventId: number) => {
+        selection.selection = {kind: 'track_event', trackUri, eventId};
+      }),
+      scrollToSelection: jest.fn(),
+      getTimeSpanOfSelection: jest.fn(),
+      selectArea: jest.fn(),
+    };
+    const trace = {
+      engine: {
+        query: jest.fn(async () => ({
+          maybeFirstRow: jest.fn(() => ({
+            ts: 711802603663579n,
+            dur: 972240n,
+          })),
+        })),
+      },
+      scrollTo: jest.fn(),
+      selection,
+      currentWorkspace: {
+        getTrackByUri: jest.fn(),
+      },
+      notes: {
+        addSpanNote: jest.fn(),
+        getNote: jest.fn(),
+      },
+    } as unknown as Parameters<typeof applyEventSnapshotSpec>[0];
+
+    const result = await applyEventSnapshotSpec(trace, {
+      key: 'launcher-doframe-137953',
+      type: 'event',
+      event: {type: 'slice', id: 137953},
+      focus: true,
+      switchToCurrentSelectionTab: false,
+    });
+
+    expect(result).toMatchObject({
+      ok: true,
+      trackUri: 'track://launcher-main',
+      eventId: 137953,
+    });
+    expect(trace.engine.query).toHaveBeenCalledWith(
+      expect.stringContaining('from slice'),
+    );
+    expect(trace.scrollTo).toHaveBeenCalledWith({
+      time: {
+        start: nsToTime(711802603663579n),
+        end: nsToTime(711802604635819n),
+        behavior: 'focus',
+      },
+      track: {
+        uri: 'track://launcher-main',
+        expandGroup: true,
+      },
+    });
+    expect(selection.selectTrackEvent).toHaveBeenCalledWith(
+      'track://launcher-main',
+      137953,
+      expect.objectContaining({
+        scrollToSelection: false,
+        switchToCurrentSelectionTab: false,
+      }),
+    );
+    expect(selection.scrollToSelection).not.toHaveBeenCalled();
+  });
+
+  test('applySnapshot pins Focused app and focuses highlighted slice 168859', async () => {
+    const previousBridge = window.perfboxUiAuto;
+    const readyListeners: Array<() => void> = [];
+
+    const systemServer = new TrackNode({name: 'system_server 2838'});
+    const focusedApp = new TrackNode({name: 'Focused app', uri: 'track://focused-app'});
+    focusedApp.pin = jest.fn();
+    systemServer.addChildLast(focusedApp);
+
+    const mmsProcess = new TrackNode({name: 'com.android.mms 24500'});
+    const mmsMainThread = new TrackNode({
+      name: 'com.android.mms 24500',
+      uri: 'track://mms-main',
+    });
+    mmsMainThread.pin = jest.fn();
+    mmsProcess.addChildLast(mmsMainThread);
+
+    const tracksByUri = new Map<string, TrackNode>([
+      ['track://focused-app', focusedApp],
+      ['track://mms-main', mmsMainThread],
+    ]);
+
+    const notes = new Map<string, unknown>();
+    const selection: {
+      selection: any;
+      resolveSqlEvents: jest.Mock;
+      selectTrackEvent: jest.Mock;
+      scrollToSelection: jest.Mock;
+      getTimeSpanOfSelection: jest.Mock;
+      selectArea: jest.Mock;
+    } = {
+      selection: {kind: 'empty'},
+      resolveSqlEvents: jest.fn(async (table: string, ids: number[]) => {
+        if (table === 'slice' && ids[0] === 168859) {
+          return [{trackUri: 'track://mms-main', eventId: 168859}];
+        }
+        return [];
+      }),
+      selectTrackEvent: jest.fn((trackUri: string, eventId: number) => {
+        selection.selection = {kind: 'track_event', trackUri, eventId};
+      }),
+      scrollToSelection: jest.fn(),
+      getTimeSpanOfSelection: jest.fn(() => ({
+        start: nsToTime(711802974000000n),
+        end: nsToTime(711802980522000n),
+      })),
+      selectArea: jest.fn(),
+    };
+
+    const trace = {
+      currentWorkspace: {
+        flatTracksOrdered: [focusedApp, mmsMainThread],
+        getTrackByUri: jest.fn((uri: string) => tracksByUri.get(uri)),
+      },
+      tracks: {
+        getTrack: jest.fn(() => undefined),
+      },
+      engine: {
+        query: jest.fn(async () => ({
+          maybeFirstRow: jest.fn(() => ({
+            ts: 711802974000000n,
+            dur: 6522000n,
+          })),
+        })),
+      },
+      scrollTo: jest.fn(),
+      selection,
+      notes: {
+        addSpanNote: jest.fn((note: {id?: string}) => {
+          const id = note.id ?? 'note-id';
+          notes.set(id, note);
+          return id;
+        }),
+        getNote: jest.fn((id: string) => notes.get(id)),
+      },
+      onTraceReady: {
+        addListener: jest.fn((listener: () => void) => {
+          readyListeners.push(listener);
+        }),
+      },
+      trash: {
+        defer: jest.fn(),
+      },
+    } as unknown as Parameters<UiAutoBridgePlugin['onTraceLoad']>[0];
+
+    try {
+      const plugin = new UiAutoBridgePlugin();
+      await plugin.onTraceLoad(trace);
+
+      expect(window.perfboxUiAuto).toBeDefined();
+      expect(window.perfboxUiAuto?.isReady()).toBe(false);
+
+      readyListeners.forEach((listener) => listener());
+      expect(window.perfboxUiAuto?.isReady()).toBe(true);
+
+      const result = await window.perfboxUiAuto!.applySnapshot({
+        version: 1,
+        tracks: [
+          {
+            key: 'focused-app',
+            type: 'track',
+            name: 'Focused app',
+            unique: true,
+            pin: true,
+          },
+        ],
+        events: [
+          {
+            key: 'slice-168859',
+            type: 'event',
+            event: {type: 'slice', id: 168859},
+            focus: true,
+            highlight: true,
+          },
+        ],
+      });
+
+      expect(result.ok).toBe(true);
+      expect(result.errors).toEqual([]);
+      expect(result.items).toEqual([
+        expect.objectContaining({
+          key: 'focused-app',
+          type: 'track',
+          ok: true,
+          trackUri: 'track://focused-app',
+          matched: 1,
+          pinned: 1,
+        }),
+        expect.objectContaining({
+          key: 'slice-168859',
+          type: 'event',
+          ok: true,
+          trackUri: 'track://mms-main',
+          eventId: 168859,
+          highlighted: true,
+        }),
+      ]);
+      expect(focusedApp.pin).toHaveBeenCalledTimes(1);
+      expect(mmsMainThread.pin).not.toHaveBeenCalled();
+      expect(selection.resolveSqlEvents).toHaveBeenCalledWith('slice', [168859]);
+      expect(trace.scrollTo).toHaveBeenCalledWith({
+        time: {
+          start: nsToTime(711802974000000n),
+          end: nsToTime(711802980522000n),
+          behavior: 'focus',
+        },
+        track: {
+          uri: 'track://mms-main',
+          expandGroup: true,
+        },
+      });
+      expect(selection.scrollToSelection).not.toHaveBeenCalled();
+      expect(selection.selectArea).toHaveBeenCalledWith(
+        expect.objectContaining({trackUris: ['track://mms-main']}),
+      );
+      expect(trace.notes.addSpanNote).toHaveBeenCalledWith(
+        expect.objectContaining({
+          id: expect.stringContaining('__perfbox_uiauto_highlight__'),
+        }),
+      );
+    } finally {
+      window.perfboxUiAuto = previousBridge;
+    }
+  });
+
+  test('applySnapshot applies explicit viewport after focusing an event', async () => {
+    const previousBridge = window.perfboxUiAuto;
+    const readyListeners: Array<() => void> = [];
+
+    const launcherMainThread = new TrackNode({
+      name: 'com.android.launcher 4402',
+      uri: 'track://launcher-main',
+    });
+    const notes = new Map<string, unknown>();
+    let visibleWindow: unknown;
+    const timeline = {
+      setVisibleWindow: jest.fn((span: unknown) => {
+        visibleWindow = span;
+      }),
+    };
+    const scrollTo = jest.fn(() => {
+      let remainingAnimationFrames = 6;
+      const animateFocus = () => {
+        timeline.setVisibleWindow('focus-animation');
+        remainingAnimationFrames--;
+        if (remainingAnimationFrames > 0) {
+          requestAnimationFrame(animateFocus);
+        }
+      };
+      requestAnimationFrame(animateFocus);
+    });
+    const selection: {
+      selection: any;
+      resolveSqlEvents: jest.Mock;
+      selectTrackEvent: jest.Mock;
+      scrollToSelection: jest.Mock;
+      getTimeSpanOfSelection: jest.Mock;
+      selectArea: jest.Mock;
+    } = {
+      selection: {kind: 'empty'},
+      resolveSqlEvents: jest.fn(async () => [
+        {trackUri: 'track://launcher-main', eventId: 137953},
+      ]),
+      selectTrackEvent: jest.fn((trackUri: string, eventId: number) => {
+        selection.selection = {kind: 'track_event', trackUri, eventId};
+      }),
+      scrollToSelection: jest.fn(),
+      getTimeSpanOfSelection: jest.fn(() => ({
+        start: nsToTime(711802603663579n),
+        end: nsToTime(711802604635819n),
+      })),
+      selectArea: jest.fn(),
+    };
+    const trace = {
+      currentWorkspace: {
+        flatTracksOrdered: [launcherMainThread],
+        getTrackByUri: jest.fn((uri: string) =>
+          uri === 'track://launcher-main' ? launcherMainThread : undefined,
+        ),
+      },
+      tracks: {
+        getTrack: jest.fn(() => undefined),
+      },
+      engine: {
+        query: jest.fn(async () => ({
+          maybeFirstRow: jest.fn(() => ({
+            ts: 711802603663579n,
+            dur: 972240n,
+          })),
+        })),
+      },
+      scrollTo,
+      selection,
+      notes: {
+        addSpanNote: jest.fn((note: {id?: string}) => {
+          const id = note.id ?? 'note-id';
+          notes.set(id, note);
+          return id;
+        }),
+        getNote: jest.fn((id: string) => notes.get(id)),
+      },
+      timeline,
+      onTraceReady: {
+        addListener: jest.fn((listener: () => void) => {
+          readyListeners.push(listener);
+        }),
+      },
+      trash: {
+        defer: jest.fn(),
+      },
+    } as unknown as Parameters<UiAutoBridgePlugin['onTraceLoad']>[0];
+
+    try {
+      const plugin = new UiAutoBridgePlugin();
+      await plugin.onTraceLoad(trace);
+      readyListeners.forEach((listener) => listener());
+
+      const result = await window.perfboxUiAuto!.applySnapshot({
+        version: 1,
+        events: [
+          {
+            key: 'launcher-doframe-137953',
+            type: 'event',
+            event: {type: 'slice', id: 137953},
+            focus: true,
+            highlight: true,
+            selectArea: false,
+            switchToCurrentSelectionTab: false,
+          },
+        ],
+        viewport: {
+          startNs: '711802602600000',
+          endNs: '711802605700000',
+        },
+      });
+
+      expect(result.ok).toBe(true);
+      expect(scrollTo).toHaveBeenCalledWith({
+        time: {
+          start: nsToTime(711802603663579n),
+          end: nsToTime(711802604635819n),
+          behavior: 'focus',
+        },
+        track: {
+          uri: 'track://launcher-main',
+          expandGroup: true,
+        },
+      });
+      expect(selection.scrollToSelection).not.toHaveBeenCalled();
+      expect(selection.selectTrackEvent).toHaveBeenCalledWith(
+        'track://launcher-main',
+        137953,
+        expect.objectContaining({switchToCurrentSelectionTab: false}),
+      );
+      expect(selection.selectArea).not.toHaveBeenCalled();
+      expect(timeline.setVisibleWindow).toHaveBeenCalledTimes(7);
+      expect(visibleWindow).not.toBe('focus-animation');
+    } finally {
+      window.perfboxUiAuto = previousBridge;
+    }
   });
 });

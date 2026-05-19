@@ -23,10 +23,13 @@ import {
 import {Track} from '../../public/track';
 import {Trace} from '../../public/trace';
 import {TrackNode} from '../../public/workspace';
+import {LONG} from '../../trace_processor/query_result';
 
 const SELECT_TIMEOUT_MS = 5000;
 const TEMPORARY_NOTE_ID = '__temp__';
 const SNAPSHOT_HIGHLIGHT_NOTE_PREFIX = '__perfbox_uiauto_highlight__';
+const FOCUS_ANIMATION_SETTLE_FRAMES = 24;
+const SNAPSHOT_RENDER_SETTLE_FRAMES = 60;
 
 type TrackLookup = (uri: string) => Track | undefined;
 
@@ -72,8 +75,14 @@ export interface UiAutoSnapshotSpec {
   readonly title?: string;
   readonly tracks?: ReadonlyArray<UiAutoSnapshotTrackSpec>;
   readonly events?: ReadonlyArray<UiAutoSnapshotEventSpec>;
-  readonly viewport?: unknown;
+  readonly viewport?: UiAutoSnapshotViewportSpec;
   readonly screenshot?: unknown;
+}
+
+export interface UiAutoSnapshotViewportSpec {
+  readonly preset?: string;
+  readonly startNs?: string;
+  readonly endNs?: string;
 }
 
 export interface UiAutoSnapshotTrackSpec {
@@ -93,6 +102,8 @@ export interface UiAutoSnapshotEventSpec {
   readonly pinOwningTrack?: boolean;
   readonly focus?: boolean;
   readonly highlight?: boolean;
+  readonly selectArea?: boolean;
+  readonly switchToCurrentSelectionTab?: boolean;
 }
 
 export interface UiAutoSnapshotEventRef {
@@ -170,6 +181,11 @@ interface ResolvedTrackEvent {
   readonly trackUri: string;
 }
 
+interface SliceBounds {
+  readonly start: time;
+  readonly end: time;
+}
+
 declare global {
   interface Window {
     perfboxUiAuto: PerfboxUiAutoApi | undefined;
@@ -234,7 +250,20 @@ export default class UiAutoBridgePlugin implements PerfettoPlugin {
             );
           }
         }
-        await nextAnimationFrame();
+        if (spec.viewport !== undefined && hasFocusedSnapshotEvent(spec.events)) {
+          await nextAnimationFrames(FOCUS_ANIMATION_SETTLE_FRAMES);
+        }
+        const viewportResult = applyViewportSnapshotSpec(trace, spec.viewport);
+        if (!viewportResult.ok) {
+          errors.push(
+            snapshotError(
+              'INVALID_SPEC',
+              viewportResult.reason ?? 'Invalid viewport',
+              'viewport',
+            ),
+          );
+        }
+        await nextAnimationFrames(SNAPSHOT_RENDER_SETTLE_FRAMES);
         return {
           ok: errors.length === 0,
           items,
@@ -522,6 +551,42 @@ export function applyTrackSnapshotSpecs(
   };
 }
 
+function hasFocusedSnapshotEvent(
+  events: ReadonlyArray<UiAutoSnapshotEventSpec> | undefined,
+): boolean {
+  return events?.some((eventSpec) => eventSpec.focus === true) ?? false;
+}
+
+export function applyViewportSnapshotSpec(
+  trace: Trace,
+  spec: UiAutoSnapshotViewportSpec | undefined,
+): UiAutoActionResult {
+  if (spec === undefined) {
+    return {ok: true};
+  }
+  if (spec.startNs === undefined && spec.endNs === undefined) {
+    return {ok: true};
+  }
+  if (spec.startNs === undefined || spec.endNs === undefined) {
+    return {ok: false, reason: 'Viewport requires both startNs and endNs'};
+  }
+
+  try {
+    const start = nsToTime(spec.startNs);
+    const end = nsToTime(spec.endNs);
+    if (start >= end) {
+      return {ok: false, reason: 'Viewport requires startNs < endNs'};
+    }
+    trace.timeline.setVisibleWindow(HighPrecisionTimeSpan.fromTime(start, end));
+    return {ok: true};
+  } catch (err) {
+    return {
+      ok: false,
+      reason: err instanceof Error ? err.message : 'Invalid viewport',
+    };
+  }
+}
+
 export function eventRefToSqlTable(
   event: UiAutoSnapshotEventRef,
 ): string | undefined {
@@ -560,11 +625,15 @@ export async function applyEventSnapshotSpec(
     };
   }
 
+  const selectionOpts =
+    spec.switchToCurrentSelectionTab === undefined
+      ? undefined
+      : {switchToCurrentSelectionTab: spec.switchToCurrentSelectionTab};
   const selected = await selectResolvedSqlEvent(
     trace,
     table,
     spec.event.id,
-    undefined,
+    selectionOpts,
     spec.focus === true,
   );
   if (!selected.ok || selected.trackUri === undefined) {
@@ -588,6 +657,7 @@ export async function applyEventSnapshotSpec(
     const highlightResult = await markCurrentSelection(
       trace,
       snapshotHighlightNoteId(key),
+      spec.selectArea !== false,
     );
     if (!highlightResult.ok) {
       return {
@@ -617,6 +687,7 @@ export async function applyEventSnapshotSpec(
 async function markCurrentSelection(
   trace: Trace,
   noteId = TEMPORARY_NOTE_ID,
+  selectArea = true,
 ): Promise<UiAutoActionResult> {
   const range = trace.selection.getTimeSpanOfSelection();
   if (range === undefined) {
@@ -628,7 +699,7 @@ async function markCurrentSelection(
     id: noteId,
   });
   const selection = trace.selection.selection;
-  if (selection.kind === 'track_event') {
+  if (selectArea && selection.kind === 'track_event') {
     trace.selection.selectArea({
       start: range.start,
       end: range.end,
@@ -783,18 +854,61 @@ async function selectResolvedSqlEvent(
         ...opts,
       };
 
-  trace.selection.selectTrackEvent(expected.trackUri, expected.eventId, {
-    ...selectionOpts,
-  });
+  if (shouldFocus && table === 'slice') {
+    const bounds = await resolveSliceBounds(trace, id);
+    if (bounds !== undefined) {
+      trace.scrollTo({
+        time: {
+          start: bounds.start,
+          end: bounds.end,
+          behavior: 'focus',
+        },
+        track: {
+          uri: expected.trackUri,
+          expandGroup: true,
+        },
+      });
+      await nextAnimationFrame();
+    }
+  }
+
+  trace.selection.selectTrackEvent(expected.trackUri, expected.eventId, selectionOpts);
   const selection = await waitForValue(
     () => trace.selection.selection,
     (current) => matchesTrackEventSelection(current, expected),
   );
-  if (shouldFocus && matchesTrackEventSelection(selection, expected)) {
+  if (
+    shouldFocus &&
+    table !== 'slice' &&
+    matchesTrackEventSelection(selection, expected)
+  ) {
     trace.selection.scrollToSelection('focus');
     await nextAnimationFrame();
   }
   return selectionResult(selection, `Timed out waiting for ${table} selection`);
+}
+
+async function resolveSliceBounds(
+  trace: Trace,
+  sliceId: number,
+): Promise<SliceBounds | undefined> {
+  const result = await trace.engine.query(`
+    select
+      ts,
+      dur
+    from slice
+    where id = ${sliceId}
+  `);
+  const row = result.maybeFirstRow({ts: LONG, dur: LONG});
+  if (row === undefined) {
+    return undefined;
+  }
+  const start = Time.fromRaw(row.ts);
+  const dur = row.dur > 0n ? row.dur : 1n;
+  return {
+    start,
+    end: Time.add(start, dur),
+  };
 }
 
 async function waitForValue<T>(
@@ -818,4 +932,10 @@ function nextAnimationFrame(): Promise<void> {
   return new Promise((resolve) => {
     requestAnimationFrame(() => resolve());
   });
+}
+
+async function nextAnimationFrames(count: number): Promise<void> {
+  for (let i = 0; i < count; i++) {
+    await nextAnimationFrame();
+  }
 }
