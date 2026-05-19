@@ -25,7 +25,7 @@ import (
 
 const (
 	defaultUIURL     = "http://localhost:10000"
-	defaultViewport  = "1920x1080"
+	defaultViewport  = "1680x900"
 	defaultTimeoutMS = 60000
 )
 

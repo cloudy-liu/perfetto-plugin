@@ -45,7 +45,7 @@ func TestParseSnapshotArgsUsesDefaults(t *testing.T) {
 	if opts.OutPath != "sample.png" {
 		t.Fatalf("OutPath = %q", opts.OutPath)
 	}
-	if opts.Viewport != "1920x1080" {
+	if opts.Viewport != "1680x900" {
 		t.Fatalf("Viewport = %q, want default", opts.Viewport)
 	}
 	if opts.TimeoutMS != 60000 {

@@ -316,6 +316,111 @@ describe('ui_auto_bridge', () => {
     expect(selection.scrollToSelection).not.toHaveBeenCalled();
   });
 
+  test('applyEventSnapshotSpec keeps related thread state visible for highlighted slices', async () => {
+    const process = new TrackNode({name: 'com.android.launcher 4402'});
+    const launcherMainThread = new TrackNode({
+      name: 'ndroid.launcher 4402',
+      uri: 'track://launcher-main',
+    });
+    const launcherThreadState = new TrackNode({
+      name: 'ndroid.launcher 4402',
+      uri: 'track://launcher-thread-state',
+    });
+    process.addChildLast(launcherMainThread);
+    process.addChildLast(launcherThreadState);
+
+    const notes = new Map<string, unknown>();
+    const selection: {
+      selection: any;
+      resolveSqlEvents: jest.Mock;
+      selectTrackEvent: jest.Mock;
+      scrollToSelection: jest.Mock;
+      getTimeSpanOfSelection: jest.Mock;
+      selectArea: jest.Mock;
+    } = {
+      selection: {kind: 'empty'},
+      resolveSqlEvents: jest.fn(async () => [
+        {trackUri: 'track://launcher-main', eventId: 137953},
+      ]),
+      selectTrackEvent: jest.fn((trackUri: string, eventId: number) => {
+        selection.selection = {kind: 'track_event', trackUri, eventId};
+      }),
+      scrollToSelection: jest.fn(),
+      getTimeSpanOfSelection: jest.fn(() => ({
+        start: nsToTime(711802603663579n),
+        end: nsToTime(711802604635819n),
+      })),
+      selectArea: jest.fn(),
+    };
+    const trace = {
+      engine: {
+        query: jest.fn(async () => ({
+          maybeFirstRow: jest.fn(() => ({
+            ts: 711802603663579n,
+            dur: 972240n,
+          })),
+        })),
+      },
+      scrollTo: jest.fn(),
+      selection,
+      currentWorkspace: {
+        getTrackByUri: jest.fn((uri: string) => {
+          if (uri === 'track://launcher-main') return launcherMainThread;
+          if (uri === 'track://launcher-thread-state') return launcherThreadState;
+          return undefined;
+        }),
+      },
+      tracks: {
+        getTrack: jest.fn((uri: string) => {
+          if (uri === 'track://launcher-thread-state') {
+            return mockTrack({tags: {kinds: ['ThreadStateTrack']}});
+          }
+          return mockTrack({tags: {kinds: ['SliceTrack']}});
+        }),
+      },
+      notes: {
+        addSpanNote: jest.fn((note: {id?: string}) => {
+          const id = note.id ?? 'note-id';
+          notes.set(id, note);
+          return id;
+        }),
+        getNote: jest.fn((id: string) => notes.get(id)),
+      },
+    } as unknown as Parameters<typeof applyEventSnapshotSpec>[0];
+
+    const result = await applyEventSnapshotSpec(trace, {
+      key: 'launcher-doframe-137953',
+      type: 'event',
+      event: {type: 'slice', id: 137953},
+      focus: true,
+      highlight: true,
+    });
+
+    expect(result.ok).toBe(true);
+    expect(trace.scrollTo).toHaveBeenNthCalledWith(1, {
+      track: {
+        uri: 'track://launcher-thread-state',
+        expandGroup: true,
+      },
+    });
+    expect(trace.scrollTo).toHaveBeenNthCalledWith(2, {
+      time: {
+        start: nsToTime(711802603663579n),
+        end: nsToTime(711802604635819n),
+        behavior: 'focus',
+      },
+      track: {
+        uri: 'track://launcher-main',
+        expandGroup: true,
+      },
+    });
+    expect(selection.selectArea).toHaveBeenCalledWith(
+      expect.objectContaining({
+        trackUris: ['track://launcher-main', 'track://launcher-thread-state'],
+      }),
+    );
+  });
+
   test('applySnapshot pins Focused app and focuses highlighted slice 168859', async () => {
     const previousBridge = window.perfboxUiAuto;
     const readyListeners: Array<() => void> = [];

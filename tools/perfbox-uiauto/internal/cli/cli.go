@@ -34,7 +34,7 @@ Snapshot flags:
   --spec PATH          Snapshot Spec JSON path (required)
   --out PATH           Output PNG path (required)
   --result PATH        Optional result JSON path
-  --viewport WxH       Browser viewport (default 1920x1080)
+  --viewport WxH       Browser viewport (default 1680x900)
   --timeout-ms N       Timeout in milliseconds (default 60000)
   --browser-path PATH  Explicit Chrome, Edge, or Chromium path
   --profile-dir PATH   Persistent browser profile directory
