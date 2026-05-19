@@ -34,9 +34,19 @@ Companion tools under `tools/` are optional; not every plugin needs one.
 2. Add `'dev.perfbox.UiAutoBridge',` to
    `<perfetto>/ui/src/core/default_plugins.ts` if you want it enabled by
    default.
-3. Build Perfetto UI from the Perfetto repository.
+3. Start Perfetto UI from the Perfetto repository.
 4. Load a trace and wait for `window.perfboxUiAuto?.isReady()` before calling
    the API.
+
+From `<perfetto>` after activating the venv:
+
+```bash
+# Already built: start the dev server.
+ui/run-dev-server -s --serve-host 0.0.0.0 -w
+
+# Not built yet: build and start the dev server.
+./ui/build -s --serve-host 0.0.0.0 -w
+```
 
 To enable the plugin without editing `default_plugins.ts`, open Perfetto UI with:
 

@@ -53,6 +53,38 @@ func TestParseMinimalSnapshotSpec(t *testing.T) {
 	}
 }
 
+func TestParsePreservesExplicitFalseEventOptions(t *testing.T) {
+	raw := []byte(`{
+		"version": 1,
+		"events": [
+			{
+				"type": "event",
+				"event": {"type": "slice", "id": 137953},
+				"highlight": true,
+				"selectArea": false,
+				"switchToCurrentSelectionTab": false
+			}
+		]
+	}`)
+
+	got, err := Parse(raw)
+	if err != nil {
+		t.Fatalf("Parse returned error: %v", err)
+	}
+	if got.Events[0].SelectArea == nil {
+		t.Fatal("Events[0].SelectArea = nil, want explicit false")
+	}
+	if *got.Events[0].SelectArea {
+		t.Fatal("Events[0].SelectArea = true, want false")
+	}
+	if got.Events[0].SwitchToCurrentSelectionTab == nil {
+		t.Fatal("Events[0].SwitchToCurrentSelectionTab = nil, want explicit false")
+	}
+	if *got.Events[0].SwitchToCurrentSelectionTab {
+		t.Fatal("Events[0].SwitchToCurrentSelectionTab = true, want false")
+	}
+}
+
 func TestParseRejectsMissingVersion(t *testing.T) {
 	_, err := Parse([]byte(`{"tracks":[]}`))
 	if err == nil {
