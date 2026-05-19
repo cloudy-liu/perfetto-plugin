@@ -26,7 +26,7 @@ perfbox-uiauto snapshot `
 - `--spec`, required
 - `--out`, required
 - `--result`, optional
-- `--viewport`, default `1920x1080`
+- `--viewport`, default `1680x900`
 - `--timeout-ms`, default `60000`
 - `--browser-path`, optional explicit Chrome, Edge, or Chromium path
 - `--profile-dir`, optional persistent browser profile directory

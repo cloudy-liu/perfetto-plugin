@@ -21,6 +21,7 @@ import {
   TrackEventSelection,
 } from '../../public/selection';
 import {Track} from '../../public/track';
+import {THREAD_STATE_TRACK_KIND} from '../../public/track_kinds';
 import {Trace} from '../../public/trace';
 import {TrackNode} from '../../public/workspace';
 import {LONG} from '../../trace_processor/query_result';
@@ -703,7 +704,7 @@ async function markCurrentSelection(
     trace.selection.selectArea({
       start: range.start,
       end: range.end,
-      trackUris: [selection.trackUri],
+      trackUris: selectedAreaTrackUris(trace, selection.trackUri),
     });
   }
   const note = await waitForValue(
@@ -857,6 +858,19 @@ async function selectResolvedSqlEvent(
   if (shouldFocus && table === 'slice') {
     const bounds = await resolveSliceBounds(trace, id);
     if (bounds !== undefined) {
+      const relatedThreadStateUri = relatedThreadStateTrackUri(
+        trace,
+        expected.trackUri,
+      );
+      if (relatedThreadStateUri !== undefined) {
+        trace.scrollTo({
+          track: {
+            uri: relatedThreadStateUri,
+            expandGroup: true,
+          },
+        });
+        await nextAnimationFrame();
+      }
       trace.scrollTo({
         time: {
           start: bounds.start,
@@ -886,6 +900,44 @@ async function selectResolvedSqlEvent(
     await nextAnimationFrame();
   }
   return selectionResult(selection, `Timed out waiting for ${table} selection`);
+}
+
+function selectedAreaTrackUris(trace: Trace, trackUri: string): string[] {
+  const relatedTrackUri = relatedThreadStateTrackUri(trace, trackUri);
+  if (relatedTrackUri === undefined || relatedTrackUri === trackUri) {
+    return [trackUri];
+  }
+  return [trackUri, relatedTrackUri];
+}
+
+function relatedThreadStateTrackUri(
+  trace: Trace,
+  trackUri: string,
+): string | undefined {
+  const trackNode = trace.currentWorkspace.getTrackByUri(trackUri);
+  if (trackNode === undefined) {
+    return undefined;
+  }
+
+  let current: TrackNode | undefined = trackNode;
+  while (current.parent !== undefined) {
+    const threadStateTrack = current.parent.children.find(
+      (candidate) =>
+        candidate.uri !== undefined &&
+        candidate.uri !== trackUri &&
+        isThreadStateTrack(trace, candidate.uri),
+    );
+    if (threadStateTrack?.uri !== undefined) {
+      return threadStateTrack.uri;
+    }
+    current = current.parent;
+  }
+  return undefined;
+}
+
+function isThreadStateTrack(trace: Trace, trackUri: string): boolean {
+  const track = trace.tracks?.getTrack(trackUri);
+  return (trackKinds(track) ?? []).includes(THREAD_STATE_TRACK_KIND);
 }
 
 async function resolveSliceBounds(

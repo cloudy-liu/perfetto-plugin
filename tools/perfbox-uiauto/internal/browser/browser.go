@@ -98,6 +98,7 @@ func CaptureSnapshot(
 	if err := chromedp.Run(browserCtx,
 		chromedp.EmulateViewport(viewport.Width, viewport.Height),
 		chromedp.Navigate(uiURL),
+		acknowledgeCookieConsent(),
 		chromedp.WaitReady("input.trace_file", chromedp.ByQuery),
 		uploadTraceFile("input.trace_file", opts.TracePath),
 	); err != nil {
@@ -111,6 +112,10 @@ func CaptureSnapshot(
 	snapshotResult, err := applySnapshot(browserCtx, snapshotSpec)
 	if err != nil {
 		return failed(errorCodeFor(err, result.BridgeNotReady), err.Error()), nil, err
+	}
+
+	if err := chromedp.Run(browserCtx, acknowledgeCookieConsent()); err != nil {
+		return failed(errorCodeFor(err, result.ScreenshotFailed), err.Error()), nil, err
 	}
 
 	var png []byte
@@ -204,6 +209,29 @@ func prepareProfileDir(explicit string) (string, func(), error) {
 		return "", func() {}, err
 	}
 	return profileDir, func() {}, nil
+}
+
+func acknowledgeCookieConsent() chromedp.Action {
+	return chromedp.Evaluate(cookieConsentAckScript(), nil)
+}
+
+func cookieConsentAckScript() string {
+	return `(() => {
+  try {
+    localStorage.setItem('cookieAck', 'true');
+  } catch (_) {
+  }
+  const banner = document.querySelector('.pf-cookie-consent');
+  if (banner === null) return true;
+  const buttons = Array.from(banner.querySelectorAll('button'));
+  const okButton = buttons.find((button) => button.textContent?.trim() === 'OK');
+  if (okButton instanceof HTMLElement) {
+    okButton.click();
+  } else if (banner instanceof HTMLElement) {
+    banner.style.display = 'none';
+  }
+  return true;
+})()`
 }
 
 func showTraceFileInput() chromedp.Action {

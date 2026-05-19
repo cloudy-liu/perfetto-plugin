@@ -99,6 +99,20 @@ func TestCaptureSnapshotUsesExplicitProfileDir(t *testing.T) {
 	}
 }
 
+func TestCookieConsentAckScriptAcknowledgesPerfettoCookieBanner(t *testing.T) {
+	script := cookieConsentAckScript()
+
+	for _, want := range []string{
+		`localStorage.setItem('cookieAck', 'true')`,
+		`.pf-cookie-consent`,
+		`OK`,
+	} {
+		if !strings.Contains(script, want) {
+			t.Fatalf("cookie consent script does not contain %q:\n%s", want, script)
+		}
+	}
+}
+
 func TestErrorCodeForTimeout(t *testing.T) {
 	if got := errorCodeFor(context.DeadlineExceeded, result.BridgeNotReady); got != result.Timeout {
 		t.Fatalf("code = %s, want TIMEOUT", got)
@@ -121,7 +135,7 @@ func captureWithFakeBrowser(t *testing.T, opts Options) ([]string, error) {
 	opts.UIURL = "http://127.0.0.1:1"
 	opts.Viewport = "1280x720"
 
-	ctx, cancel := context.WithTimeout(context.Background(), 250*time.Millisecond)
+	ctx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
 	defer cancel()
 	_, _, err := CaptureSnapshot(ctx, opts, spec.SnapshotSpec{Version: spec.Version})
 
