@@ -24,10 +24,8 @@ import (
 func TestSnapshotSpecExamplesParse(t *testing.T) {
 	exampleDir := snapshotSpecExampleDir(t)
 	want := []string{
+		"launcher_window_animation_slice_137953.snapshot.json",
 		"minimal_track_pin.snapshot.json",
-		"phb110_camera_startup_happy_path.snapshot.json",
-		"phb110_launcher_window_animation_slice_137953.snapshot.json",
-		"phb110_mms_focused_app_slice_168859.snapshot.json",
 		"slice_focus.snapshot.json",
 		"slice_highlight.snapshot.json",
 		"thread_state_snapshot.snapshot.json",
